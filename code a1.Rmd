@@ -1,0 +1,168 @@
+---
+title: "a1"
+author: "Yichen Ni"
+date: "2022/2/9"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+##import data collelcted into Rstudio 
+library(readxl)
+clean_price = read_excel("C:\\Users\\Rick\\Desktop\\clean price.xlsx")
+dirty_price = read_excel("C:\\Users\\Rick\\Desktop\\dirty price.xlsx") 
+```
+
+```{r} 
+##construct the matrix for the closed price of 10 days of selected bonds
+coupon_paid <- dirty_price$Coupon
+maturity_date <- dirty_price$`Maturity Date` ##extract corresponding data from dataset
+date_of_data <- c("2022-01-10", "2022-01-11", "2022-01-12", "2022-01-13", "2022-01-14", "2022-01-17", "2022-01-18", "2022-01-19", "2022-01-20", "2022-01-21") ##preparation for further looping
+matrix_of_dirty_price = matrix(c(dirty_price$`01/10/2022`, dirty_price$`01/11/2022`, dirty_price$`01/12/2022`, dirty_price$`01/13/2022`, dirty_price$`01/14/2022`,  dirty_price$`01/17/2022`, dirty_price$`01/18/2022`, dirty_price$`01/19/2022`, dirty_price$`01/20/2022`, dirty_price$`01/21/2022`), nrow = 10, ncol = 10, byrow = TRUE) 
+```
+
+```{r}
+##construct the matrix of YTM with maturity date derived from and matrix of close price in the last chunk. Since we are required to calculate YTM of each bond of each day, using loop could solve the problem.
+library(jrvFinance)
+matrix_of_YTM = matrix("numeric", nrow = 10, ncol = 10)
+for (j in c(1:10)) {
+  dirty_price = matrix_of_dirty_price[ ,j]
+  for(i in c(1:10)){
+    matrix_of_YTM[i,j] <- bond.yield(settle=date_of_data[i], mature = maturity_date[j], coupon=coupon_paid[j], freq = 2, price=dirty_price[i], convention = c("30/360", "ACT/ACT", "ACT/360", "30/360E"), comp.freq = 2, redemption_value = 100) ##Using function bond.yield and loop to calculate the YTM of each bond of each day
+  }
+}
+```
+
+```{r}
+##With the YTM matrix, we could plot the YTM curve for each each semi-year.
+semiyear = c(seq(0.5, 5, 0.5))
+plot(semiyear, matrix_of_YTM[1,], main = "5-Year YTM Curve", col = "purple", xlab = "year", ylab = "YTM", ylim=c(0.0001,0.03), lwd=2)
+color_of_bonds = c("blue", "pink", "red", "brown", "orange", "blue", "green", "grey", "violet","gold") ##set different colors for different bonds for better comparison
+for(i in c(2:10)){
+  lines(semiyear, matrix_of_YTM[i,], type = "o", col=color_of_bonds[i-1], lwd=2)
+}##set colors to each bond
+legend("topright", legend = c("CAN 0.5 Mar 01", "CAN 2.0 Dec15", "CAN 1.75 Mar 01", "CAN 2.25 Mar 01", "CAN 1.50 Sep 01", "CAN 1.25 Mar 01", "CAN 0.5 Sep 01", "CAN 0.25 Mar 01", " CAN 1.0 Sep01", "CAN 1.25 Mar 01"), col=c(1,2,3,4,5,6,7,8,9,10), lty=1, cex=0.5)
+```
+##Now calculate spot rate
+```{r}
+##to calculate spot rate, we need to know the cash flow of each period
+cash_flow = list()
+for (i in 1:10) {cash_flow=bond.TCF(date_of_data[i], maturity_date[i], coupon_paid[i], freq = 2, redemption_value = 100)$cf
+  print(cash_flow)
+}
+```
+```{r}
+##to simplify further calculation, name cash flows as functions first
+cash_flow1=c(100.25)
+cash_flow2=c(1, 101)
+cash_flow3=c(0.875, 0.875, 100.875)
+cash_flow4=c(1.125, 1.125, 1.125, 101.125)
+cash_flow5=c(0.75, 0.75, 0.75, 0.75, 100.75)
+cash_flow6=c(0.625, 0.625, 0.625, 0.625, 0.625, 100.625)
+cash_flow7=c(0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 100.25)
+cash_flow8=c(0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 100.125)
+cash_flow9=c(0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 100.5)
+cash_flow10=c(0.625, 0.625, 0.625, 0.625, 0.625, 0.625, 0.625, 0.625, 0.625, 100.625)
+```
+
+```{r}
+##since time till mature, issue date of different bonds are not the same. For comparison, we need to convert thier time till maturity in the same unit of year by using function yearfraction. Since all other data are represented in matrix, we will do the same here.
+year_in_fraction = matrix("numeric", nrow=10, ncol = 10)
+for (i in c(1:10)) {
+  for (j in c(1:10)) {
+    year_in_fraction[i,j]=yearFraction(date_of_data[i], maturity_date[j], freq=2, convention = c("30/360", "ACT/ACT", "ACT/360", "30/360E"))}}
+```
+
+```{r}
+##Now we can calculate spot rate for each period
+matrix_of_spot_rate = matrix(nrow = 10, ncol = 10)
+for (i in 1:10) {
+  time_period1=as.numeric(year_in_fraction[i,1])
+  spot_rate1=-log(cash_flow1[1]/matrix_of_dirty_price[i,1])/time_period1
+  time_period2=as.numeric(year_in_fraction[i,2])
+  spot_rate2=-log(cash_flow2[1]/matrix_of_dirty_price[i,2])/time_period2
+  time_period3=as.numeric(year_in_fraction[i,3])
+  spot_rate3=-log(cash_flow3[1]/matrix_of_dirty_price[i,3])/time_period3
+  time_period4=as.numeric(year_in_fraction[i,4])
+  spot_rate4=-log(cash_flow4[1]/matrix_of_dirty_price[i,4])/time_period4
+  time_period5=as.numeric(year_in_fraction[i,5])
+  spot_rate5=-log(cash_flow5[1]/matrix_of_dirty_price[i,5])/time_period5
+  time_period6=as.numeric(year_in_fraction[i,6])
+  spot_rate6=-log(cash_flow6[1]/matrix_of_dirty_price[i,6])/time_period6
+  time_period7=as.numeric(year_in_fraction[i,7])
+  spot_rate7=-log(cash_flow7[1]/matrix_of_dirty_price[i,7])/time_period7
+  time_period8=as.numeric(year_in_fraction[i,8])
+  spot_rate8=-log(cash_flow8[1]/matrix_of_dirty_price[i,8])/time_period8
+  time_period9=as.numeric(year_in_fraction[i,9])
+  spot_rate9=-log(cash_flow9[1]/matrix_of_dirty_price[i,9])/time_period9
+  time_period10=as.numeric(year_in_fraction[i,10])
+  spot_rate10=-log(cash_flow10[1]/matrix_of_dirty_price[i,10])/time_period10
+  rates = rbind(spot_rate1, spot_rate2, spot_rate3, spot_rate4, spot_rate5, spot_rate6, spot_rate7, spot_rate8, spot_rate9, spot_rate10)
+  matrix_of_spot_rate[i, ] = rates
+}
+```
+
+```{r}
+##plot the spot curve
+semiyear = c(seq(0.5, 5, 0.5))
+plot(semiyear, matrix_of_spot_rate[1,], main = "5-Year Spot Curve", col = "purple", xlab = "year", ylab = "YTM(%)", ylim=c(0,6), lwd=5)
+color_of_bonds = c("blue", "pink", "red", "brown", "orange", "blue", "green", "grey", "violet","gold") ##set different colors for different bonds for better comparison
+for(i in c(2:10)){
+  lines(semiyear, matrix_of_spot_rate[i,], type = "o", col=color_of_bonds[i-1], lwd=3)
+}##set colors to each bond
+legend("topright", legend = c("CAN 0.5 Mar 01", "CAN 2.0 Dec15", "CAN 1.75 Mar 01", "CAN 2.25 Mar 01", "CAN 1.50 Sep 01", "CAN 1.25 Mar 01", "CAN 0.5 Sep 01", "CAN 0.25 Mar 01", " CAN 1.0 Sep01", "CAN 1.25 Mar 01"), col=c(1,2,3,4,5,6,7,8,9,10), lty=1, cex=0.5)
+```
+```{r}
+##set the matrix of first year forward rate of each bond
+matrix_of_forward_rate = matrix(nrow = 10, ncol = 4)
+for (j in c(1:10)) {
+  for (i in c(1:4)) {
+    formula_of_forward = function(x)((1+matrix_of_spot_rate[j,1]/2)^2)*((1+x/2)^(2*i))-(1+matrix_of_spot_rate[j,i+1]/2)^(2*(i+1))
+    matrix_of_forward_rate[j,i]=uniroot(formula_of_forward,c(0,100))$root
+  }
+}
+```
+
+```{r}
+##plot the graph of first year forward rate
+year=c(2,3,4,5)
+plot(year, matrix_of_forward_rate[1,], main = "first Year forward Curve", col = "purple", xlab = "year", ylab = "forward rate(%)", ylim=c(0,30), lwd=5)
+color_of_bonds = c("blue", "pink", "red", "brown", "orange", "blue", "green", "grey", "violet","gold") ##set different colors for different bonds for better comparison
+for(i in c(2:10)){
+  lines(year, matrix_of_forward_rate[i,], type = "o", col=color_of_bonds[i-1], lwd=3)
+}##set colors to each bond
+legend("topright", legend = c("CAN 0.5 Mar 01", "CAN 2.0 Dec15", "CAN 1.75 Mar 01", "CAN 2.25 Mar 01", "CAN 1.50 Sep 01", "CAN 1.25 Mar 01", "CAN 0.5 Sep 01", "CAN 0.25 Mar 01", " CAN 1.0 Sep01", "CAN 1.25 Mar 01"), col=c(1,2,3,4,5,6,7,8,9,10), lty=1, cex=0.5)
+```
+```{r}
+##calculate the log function of ytm matrix, and then compute the covariance matrix of it.
+log_matrix_of_forward = matrix(nrow = 9, ncol=4)
+for (i in c(1:4)) {
+  for (j in c(1:9)) {
+    log_matrix_of_forward[j,i] = log(matrix_of_forward_rate[(j+1),i]/matrix_of_forward_rate[j,i])
+  }
+}
+covariance_of_forward = cov(log_matrix_of_forward,log_matrix_of_forward)
+```
+```{r}
+##calculate the log function of ytm matrix, and then compute the covariance matrix of it.
+ytm <- matrix(as.numeric(matrix_of_YTM), ncol = 10)
+log_matrix_of_ytm = matrix(nrow = 9, ncol=10)
+for (i in c(1:10)) {
+  for (j in c(1:9)) {
+    log_matrix_of_ytm[j,i] = log(ytm[(j+1),i]/ytm[j,i])
+  }
+}
+covariance_of_ytm=cov(log_matrix_of_ytm,log_matrix_of_ytm)
+```
+
+```{r}
+eigenvalue_of_forward = eigen(covariance_of_forward)$value
+eigenvector_of_forward = eigen(covariance_of_forward)$vector
+eigenvalue_of_ytm = eigen(covariance_of_ytm)$value
+eigenvector_of_ytm = eigen(covariance_of_ytm)$vector
+```
+
+
+
+
